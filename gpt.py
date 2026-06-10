@@ -12,13 +12,15 @@ class LayerNorm(nn.Module):
     def __init__(self, emb_dim, eps=1e-5):
         super().__init__()
         self.eps = eps
+        #eps是一个小常数，防止除以零的情况发生，确保数值稳定性
         self.scale = nn.Parameter(torch.ones(emb_dim))
         self.shift = nn.Parameter(torch.zeros(emb_dim))
-
+        #scale 和 shift 是可学习的参数，分别用于缩放和偏移归一化后的输出，使模型能够恢复原始分布或学习更适合的分布
     def forward(self, x):
         mean = x.mean(dim=-1, keepdim=True)
         var = x.var(dim=-1, keepdim=True, unbiased=False)
         norm_x = (x - mean) / torch.sqrt(var + self.eps)
+        #均值和方差是沿着最后一个维度计算的，即对每个样本的嵌入向量进行归一化。keepdim=True 保持维度不变，以便后续的广播操作。均值0和方差1的标准化输出通过 scale 和 shift 进行线性变换，允许模型学习更适合的分布。
         return self.scale * norm_x + self.shift
 
 
@@ -38,12 +40,13 @@ class FeedForward(nn.Module):
             nn.Linear(cfg["emb_dim"], 4 * cfg["emb_dim"]),
             GELU(),
             nn.Linear(4 * cfg["emb_dim"], cfg["emb_dim"])
+            #两个线性层之间的 GELU 激活函数引入了非线性，使模型能够学习更复杂的函数映射
         )
 
     def forward(self, x):
         return self.layers(x)
 
-
+#每个 Transformer 块包含 归一化、注意力机制、前馈网络(升维、激活、降维)和残差连接。Pre-LN 结构意味着在每个子层（注意力和前馈网络）之前进行层归一化，这有助于稳定训练过程并加速收敛。
 class TransformerBlock(nn.Module):
     """单个 Transformer Decoder 块（Pre-LN 结构）"""
     def __init__(self, cfg):
@@ -64,13 +67,13 @@ class TransformerBlock(nn.Module):
     def forward(self, x):
         # 第一个残差：注意力 + 残差连接
         shortcut = x
-        x = self.norm1(x)
+        x = self.norm1(x)#前馈网络和注意力机制之前的层归一化有助于稳定训练过程，防止梯度消失或爆炸，并加速模型的收敛。
         x = self.attn(x)
-        x = shortcut + self.dropout(x)
+        x = shortcut + self.dropout(x) #dropout 在残差连接后应用，有助于正则化模型，减少过拟合的风险。通过在训练过程中随机丢弃一些连接，dropout 强制模型学习更鲁棒的特征表示。
 
         # 第二个残差：前馈网络 + 残差连接
         shortcut = x
-        x = self.norm2(x)
+        x = self.norm2(x)#
         x = self.ff(x)
         x = shortcut + self.dropout(x)
         return x
@@ -132,15 +135,15 @@ def generate_text_simple(model, idx, max_new_tokens, context_size):
         idx_cond = idx[:, -context_size:]
 
         with torch.no_grad():
-            logits = model(idx_cond)          # [1, context_len, vocab_size]
+            logits = model(idx_cond)          # [batch_size, context_len, vocab_size]
 
         # 只取最后一个时间步的输出
-        logits_last = logits[:, -1, :]        # [1, vocab_size]
+        logits_last = logits[:, -1, :]        # [batch_size, vocab_size]
         probs = torch.softmax(logits_last, dim=-1)
-        idx_next = torch.argmax(probs, dim=-1, keepdim=True)  # [1, 1]
+        idx_next = torch.argmax(probs, dim=-1, keepdim=True)  # [batch_size, 1]
 
         # 拼接到序列末尾
-        idx = torch.cat((idx, idx_next), dim=1)
+        idx = torch.cat((idx, idx_next), dim=1)#[batch_size, current_seq_len+1]
 
     return idx
 

@@ -1,4 +1,4 @@
-# LLMS from scratch 从零构建建大模型
+# LLMS from scratch 从零构建大模型
 
 从零开始实现GPT架构的简易大模型.
 

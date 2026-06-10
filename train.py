@@ -9,7 +9,7 @@ from dataset import create_dataloader, read_text_file
 from gpt import GPTModel, generate_text_simple
 
 
-# ==================== 辅助函数 ====================
+# ==================== 辅助函数 ====================训练时专用，此时batch_size==1
 def text_to_token_ids(text, tokenizer):
     """将文本转换为 token ids 张量，并增加 batch 维度"""
     encoded = tokenizer.encode(text, allowed_special={'<|endoftext|>'})
@@ -153,11 +153,12 @@ if __name__ == "__main__":
 
     # 3. 初始化模型、优化器、设备
     torch.manual_seed(123)
+    torch.cuda.manual_seed(123)
     model = GPTModel(GPT_CONFIG_124M)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-
+    #初始化优化器，使用 AdamW 优化器，学习率为 0.0004，权重衰减为 0.1。这些超参数可以根据需要进行调整，以获得更好的训练效果。
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=0.0004,
